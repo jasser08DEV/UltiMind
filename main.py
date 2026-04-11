@@ -1,8 +1,7 @@
 import pygame
 import sys
 from engine import make_move
-from ai import get_best_move
-from ai import nodes_searched
+import ai
 pygame.init()
 
 screen = pygame.display.set_mode((980, 720))
@@ -15,15 +14,19 @@ BOARD_SIZE = 540
 CELL_SIZE = 60
 SUB_SIZE = 180
 
+ai_score = 0
+
 board = [[0] * 9 for _ in range(9)]
 turn = 1
 active_sub = -1
 game_over = False
 meta = [0] * 9
-depth = 5
+ai_depth = 0
+depth = 4
 profile = "Balanced"
 nodes_searched = 0
 win_prob = 50
+
 
 font_large = pygame.font.SysFont("consolas", 28, bold=True)
 font_med = pygame.font.SysFont("consolas", 18)
@@ -36,7 +39,7 @@ while True:
             sys.exit()
         if event.type == pygame.MOUSEBUTTONDOWN:
             mx, my = pygame.mouse.get_pos()
-            if not game_over and BOARD_LEFT <= mx <= BOARD_LEFT + BOARD_SIZE and BOARD_TOP <= my <= BOARD_TOP + BOARD_SIZE:
+            if not game_over and turn == 1 and BOARD_LEFT <= mx <= BOARD_LEFT + BOARD_SIZE and BOARD_TOP <= my <= BOARD_TOP + BOARD_SIZE:
                 cell_col = (mx - BOARD_LEFT) // CELL_SIZE
                 cell_row = (my - BOARD_TOP) // CELL_SIZE
                 sub_row = cell_row // 3
@@ -45,29 +48,39 @@ while True:
                 local_row = cell_row % 3
                 local_col = cell_col % 3
                 local = local_row * 3 + local_col
-                turn, active_sub, winner = make_move(board,meta, sub, local, turn, active_sub)
+                if active_sub != -1 and (meta[active_sub] != 0 or all(board[active_sub][c] != 0 for c in range(9))):
+                    active_sub = -1
+                prev_turn = turn
+                turn, active_sub, winner = make_move(board, meta, sub, local, turn, active_sub)
                 if winner != 0:
                     game_over = True
-                elif turn == -1 and not game_over:
+                elif turn != prev_turn and turn == -1 and not game_over:
                     moves_played = sum(1 for s in range(9) for c in range(9) if board[s][c] != 0)
-                    ai_depth = 3 if moves_played<10 else 4 if moves_played<25 else 5
-                    ai_move = get_best_move(board,meta,active_sub,ai_depth)
+                    ai.nodes_searched = 0
+                    ai.transposition_table = {}
+                    if active_sub != -1 and (meta[active_sub] != 0 or all(board[active_sub][c] != 0 for c in range(9))):
+                        active_sub = -1
+                    ai.nodes_searched = 0
+                    ai_move, ai_score = ai.get_best_move(board,meta,active_sub,depth, profile)
+                    win_prob = int(50 + (ai_score / 15000) * 50)
+                    win_prob = max(0, min(100, win_prob))
                     if ai_move:
                         turn, active_sub, winner = make_move(board, meta, ai_move[0], ai_move[1],turn, active_sub)
                         if winner != 0:
                             game_over = True
 
-
-            if 600 <= mx <= 650 and 480 <= my <= 510:
-                depth = 4
-            if 660 <= mx <= 710 and 480 <= my <= 510:
-                depth = 5
-            if 720 <= mx <= 770 and 480 <= my <= 510:
-                depth = 6
-            if 600 <= mx <= 710 and 540 <= my <= 570:
-                profile = "Aggressive"
-            if 720 <= mx <= 840 and 540 <= my <= 570:
-                profile = "Balanced"
+            if 420 <= my <= 450:
+                if 600 <= mx <= 650:
+                    depth = 4
+                elif 660 <= mx <= 710:
+                    depth = 5
+                elif 720 <= mx <= 770:
+                    depth = 6
+            if 485 <= my <= 515:
+                if 600 <= mx <= 710:
+                    profile = "Aggressive"
+                elif 720 <= mx <= 840:
+                    profile = "Balanced"
 
 
     screen.fill((10, 12, 20))
@@ -124,6 +137,50 @@ while True:
 
     pygame.draw.rect(screen, (15, 18, 30), (580, 80, 370, 560), border_radius=8)
     pygame.draw.rect(screen, (35, 40, 60), (580, 80, 370, 560), 1, border_radius=8)
+
+    analytics_title = font_med.render("AI ANALYTICS", True, (60, 200, 100))
+    screen.blit(analytics_title, (600, 100))
+    pygame.draw.line(screen, (35, 40, 60), (600, 125), (930, 125), 1)
+
+    screen.blit(font_med.render("Nodes Searched", True, (80, 90, 110)), (600, 145))
+    screen.blit(font_large.render(f"{ai.nodes_searched:,}", True, (200, 210, 230)), (600, 168))
+    for i, d in enumerate([4, 5, 6]):
+        bx = 600 + i * 60
+        col_btn = (60, 200, 100) if depth == d else (35, 40, 60)
+        pygame.draw.rect(screen, col_btn, (bx, 420, 50, 30), border_radius=4)
+        pygame.draw.rect(screen, (70, 80, 120), (bx, 420, 50, 30), 1, border_radius=4)
+        screen.blit(font_med.render(str(d), True, (200, 210, 230)), (bx + 17, 425))
+    screen.blit(font_med.render("Search Depth", True, (80, 90, 110)), (600, 215))
+    screen.blit(font_large.render(str(depth), True, (200, 210, 230)), (600, 238))
+
+    screen.blit(font_med.render("Win Probability", True, (80, 90, 110)), (600, 285))
+    bar_w = 300
+    pygame.draw.rect(screen, (30, 35, 50), (600, 312, bar_w, 18), border_radius=4)
+
+    fill = int(bar_w * win_prob / 100)
+    bar_color = (60, 200, 100) if win_prob >= 50 else (255, 90, 80)
+    pygame.draw.rect(screen, bar_color, (600, 312, fill, 18), border_radius=4)
+    screen.blit(font_small.render(f"{win_prob}%", True, (200, 210, 230)), (908, 312))
+
+    pygame.draw.line(screen, (35, 40, 60), (600, 350), (930, 350), 1)
+
+    screen.blit(font_med.render("AI CONFIG", True, (60, 200, 100)), (600, 365))
+
+    screen.blit(font_small.render("DEPTH", True, (80, 90, 110)), (600, 400))
+    for i, d in enumerate([4, 5, 6]):
+        bx = 600 + i * 60
+        col_btn = (60, 200, 100) if depth == d else (35, 40, 60)
+        pygame.draw.rect(screen, col_btn, (bx, 420, 50, 30), border_radius=4)
+        pygame.draw.rect(screen, (70, 80, 120), (bx, 420, 50, 30), 1, border_radius=4)
+        screen.blit(font_med.render(str(d), True, (200, 210, 230)), (bx + 17, 425))
+
+    screen.blit(font_small.render("PROFILE", True, (80, 90, 110)), (600, 465))
+    for i, p in enumerate(["Aggressive", "Balanced"]):
+        bx = 600 + i * 120
+        col_btn = (60, 200, 100) if profile == p else (35, 40, 60)
+        pygame.draw.rect(screen, col_btn, (bx, 485, 110, 30), border_radius=4)
+        pygame.draw.rect(screen, (70, 80, 120), (bx, 485, 110, 30), 1, border_radius=4)
+        screen.blit(font_small.render(p, True, (200, 210, 230)), (bx + 8, 493))
 
     if game_over:
         msg = "X WINS!" if winner == 1 else "O WINS!"

@@ -28,6 +28,8 @@ def check_winner(cells):
     return 0
 
 def make_move(board,meta, sub,local,turn,active_sub):
+    if meta[sub]!=0:
+        return turn, active_sub, 0
     if active_sub != -1 and sub != active_sub:
         return turn, active_sub,0
     if board[sub][local] != 0:
