@@ -17,14 +17,23 @@ def get_legal_moves(board, meta, active_sub):
     return moves
 
 def check_winner(cells):
-    lines=[
-        (0,1,2),(3,4,5),(6,7,8),
-        (0,3,6),(1,4,7),(2,5,8),
-        (0,4,8),(2,4,6)
-    ]
-    for a,b,c in lines:
-        if cells[a]!=0 and cells[a] == cells[b] == cells[c]:
-            return cells[a]
+    p1_mask = 0
+    p2_mask = 0
+    
+    for i in range(9):
+        if cells[i] == 1: 
+            p1_mask |= (1 << i)
+        elif cells[i] == -1: 
+            p2_mask |= (1 << i)
+
+    win_masks = [7, 56, 448, 73, 146, 292, 273, 84] 
+
+    for mask in win_masks:
+        if (p1_mask & mask) == mask: 
+            return 1
+        if (p2_mask & mask) == mask: 
+            return -1
+            
     return 0
 
 def make_move(board,meta, sub,local,turn,active_sub):

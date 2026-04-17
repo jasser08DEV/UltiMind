@@ -12,6 +12,21 @@ nodes_searched = 0
 
 
 
+
+# ── "Best-First" Move Ordering ──────────────────────────────────────────
+def score_move(board,meta,sub,local,player):
+    score = 0
+    if local == 4:
+        score += 50
+    if local in [0,2,6,8]:
+        score += 20
+    temp = board[sub][local]
+    board[sub][local] = player
+    if check_winner(board[sub]) == player:
+        score += 1000
+    board[sub][local] = temp
+    return score
+
 # ── ZOBRIST TABLE ──────────────────────────────────────────
 def compute_hash(board, active_sub):
     h = 0
@@ -155,6 +170,7 @@ def minimax(board,meta,active_sub,turn,depth, alpha,beta, profile):
     if depth == 0:
         return evaluate(board, meta,active_sub, depth, turn, profile)
     moves = get_legal_moves(board,meta,active_sub)
+    moves.sort(key=lambda m: score_move(board,meta,m[0],m[1],turn), reverse=(turn==1))
     if turn == 1:
         best = -float('inf')
         for sub, local in moves:
@@ -190,17 +206,22 @@ def minimax(board,meta,active_sub,turn,depth, alpha,beta, profile):
 
 
 
-# ── ENTRY POINT ────────────────────────────────────────────
+# ── Best move ──────────────────────────────────────────
 def get_best_move(board, meta, active_sub, depth, profile):
-    best_score = float('inf')
-    best_move = None
+    moves_played = sum(1 for s in range(9) for c in range(9) if board[s][c] != 0)
+    if moves_played == 0:
+        return (4, 4), 0
+    if moves_played == 1 and board[4][4] != 0:
+        return (4, 0), 0
     moves = get_legal_moves(board,meta,active_sub)
     if not moves:
-        return None
+        return None, 0
     candidate = best_moves(board, meta, active_sub, -1)
     if candidate in moves:
         moves.remove(candidate)
         moves.insert(0, candidate)
+    best_score = float('inf')
+    best_move = None
     for sub, local in moves:
         temp = board[sub][local]
         temp1 = meta[sub]

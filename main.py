@@ -1,5 +1,6 @@
 import pygame
 import sys
+import random
 from engine import make_move
 import ai
 pygame.init()
@@ -17,7 +18,7 @@ SUB_SIZE = 180
 ai_score = 0
 
 board = [[0] * 9 for _ in range(9)]
-turn = 1
+turn = random.choice([1, -1]) 
 active_sub = -1
 game_over = False
 meta = [0] * 9
@@ -26,7 +27,6 @@ depth = 4
 profile = "Balanced"
 nodes_searched = 0
 win_prob = 50
-
 
 font_large = pygame.font.SysFont("consolas", 28, bold=True)
 font_med = pygame.font.SysFont("consolas", 18)
@@ -37,8 +37,10 @@ while True:
         if event.type == pygame.QUIT:
             pygame.quit()
             sys.exit()
+            
         if event.type == pygame.MOUSEBUTTONDOWN:
             mx, my = pygame.mouse.get_pos()
+            
             if not game_over and turn == 1 and BOARD_LEFT <= mx <= BOARD_LEFT + BOARD_SIZE and BOARD_TOP <= my <= BOARD_TOP + BOARD_SIZE:
                 cell_col = (mx - BOARD_LEFT) // CELL_SIZE
                 cell_row = (my - BOARD_TOP) // CELL_SIZE
@@ -48,26 +50,14 @@ while True:
                 local_row = cell_row % 3
                 local_col = cell_col % 3
                 local = local_row * 3 + local_col
+                
                 if active_sub != -1 and (meta[active_sub] != 0 or all(board[active_sub][c] != 0 for c in range(9))):
                     active_sub = -1
+                
                 prev_turn = turn
                 turn, active_sub, winner = make_move(board, meta, sub, local, turn, active_sub)
                 if winner != 0:
                     game_over = True
-                elif turn != prev_turn and turn == -1 and not game_over:
-                    moves_played = sum(1 for s in range(9) for c in range(9) if board[s][c] != 0)
-                    ai.nodes_searched = 0
-                    ai.transposition_table = {}
-                    if active_sub != -1 and (meta[active_sub] != 0 or all(board[active_sub][c] != 0 for c in range(9))):
-                        active_sub = -1
-                    ai.nodes_searched = 0
-                    ai_move, ai_score = ai.get_best_move(board,meta,active_sub,depth, profile)
-                    win_prob = int(50 + (ai_score / 15000) * 50)
-                    win_prob = max(0, min(100, win_prob))
-                    if ai_move:
-                        turn, active_sub, winner = make_move(board, meta, ai_move[0], ai_move[1],turn, active_sub)
-                        if winner != 0:
-                            game_over = True
 
             if 420 <= my <= 450:
                 if 600 <= mx <= 650:
@@ -76,12 +66,32 @@ while True:
                     depth = 5
                 elif 720 <= mx <= 770:
                     depth = 6
+                    
             if 485 <= my <= 515:
                 if 600 <= mx <= 710:
                     profile = "Aggressive"
                 elif 720 <= mx <= 840:
                     profile = "Balanced"
 
+    if not game_over and turn == -1:
+        pygame.display.flip() 
+        
+        moves_played = sum(1 for s in range(9) for c in range(9) if board[s][c] != 0)
+        ai.nodes_searched = 0
+        ai.transposition_table = {}
+        
+        if active_sub != -1 and (meta[active_sub] != 0 or all(board[active_sub][c] != 0 for c in range(9))):
+            active_sub = -1
+            
+        ai_move, ai_score = ai.get_best_move(board, meta, active_sub, depth, profile)
+        
+        win_prob = int(50 + (ai_score / 15000) * 50)
+        win_prob = max(0, min(100, win_prob))
+        
+        if ai_move:
+            turn, active_sub, winner = make_move(board, meta, ai_move[0], ai_move[1], turn, active_sub)
+            if winner != 0:
+                game_over = True
 
     screen.fill((10, 12, 20))
     if active_sub != -1:
@@ -111,7 +121,7 @@ while True:
                 cx = sx + cc * CELL_SIZE + CELL_SIZE // 2
                 cy = sy + cr * CELL_SIZE + CELL_SIZE // 2
                 pygame.draw.circle(screen, (255, 90, 80), (cx, cy), 18, 3)
-        if meta[s] != 0:  # ← same level as "for c", not inside it
+        if meta[s] != 0: 
             cx = BOARD_LEFT + sc * SUB_SIZE + SUB_SIZE // 2
             cy = BOARD_TOP + sr * SUB_SIZE + SUB_SIZE // 2
             if meta[s] == 1:
